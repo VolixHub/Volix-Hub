@@ -1,48 +1,28 @@
 local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local TweenService = game:GetService("TweenService")
-
 local player = Players.LocalPlayer
 local character = player.Character or player.CharacterAdded:Wait()
 local humanoid = character:WaitForChild("Humanoid")
 local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
 local userInputService = game:GetService("UserInputService")
 local camera = workspace.CurrentCamera
 
--- Ayarlar
-local flying = false
-local noclip = false
-local speedHackEnabled = false
-local jumpPowerEnabled = false
-local defaultGravity = workspace.Gravity
 local defaultWalkspeed = humanoid.WalkSpeed
 local defaultJumpPower = humanoid.JumpPower
-local flyLoop
-local darkTheme = true
+local flying = false
+local noclip = false
 local espEnabled = false
-local autoFarmEnabled = false
+local speedHackEnabled = false
+local jumpPowerEnabled = false
+local darkTheme = true
+local MAX_WALK_SPEED = 150
+local MAX_JUMP_POWER = 200
 
--- Limitler
 local MAX_FLY_SPEED = 1000
-local MAX_WALK_SPEED = 1000
-local MAX_JUMP_POWER = 500
-local SABIT_YUKSEKLIK = 20
+local flyLoop
 
--- Stage listesi (10. Stage eklendi)
-local stageOrder = {
-    "CaveStage1",
-    "CaveStage2",
-    "CaveStage3",
-    "CaveStage4",
-    "CaveStage5",
-    "CaveStage6",
-    "CaveStage7",
-    "CaveStage8",
-    "CaveStage9",
-    "CaveStage10",
-}
-
--- ESP Sistemi
+-- ESP Sistem
 local ESP = {
     Boxes = {},
     Names = {},
@@ -113,547 +93,104 @@ function ESP:Clear()
     self.Names = {}
 end
 
--- Darkness bul
-local function findDarkness(stageName)
-    local stages = workspace:FindFirstChild("BoatStages"):FindFirstChild("NormalStages")
-    if stages then
-        local stage = stages:FindFirstChild(stageName)
-        if stage then
-            return stage:FindFirstChild("Darkness") or stage:FindFirstChildWhichIsA("BasePart", true)
-        end
-    end
-    return nil
-end
+-- Fly Button İşlevi
+flyButton.MouseButton1Click:Connect(function()
+    flying = not flying
+    if flying then
+        humanoid.PlatformStand = true
+        workspace.Gravity = 0
+        flyButton.Text = "Un Fly"
+        flyButton.BackgroundColor3 = Color3.fromRGB(50, 255, 50)
 
-local function getTriggerPart()
-    local chest = workspace:FindFirstChild("BoatStages") and workspace.BoatStages:FindFirstChild("NormalStages")
-    if chest then
-        local theEnd = chest:FindFirstChild("TheEnd")
-        if theEnd then
-            local goldenChest = theEnd:FindFirstChild("GoldenChest") -- düzeltildi (boşluksuz)
-            if goldenChest then
-                return goldenChest:FindFirstChild("Trigger")
-            end
-        end
-    end
-    return nil
-end
+        flyLoop = RunService.RenderStepped:Connect(function()
+            local pos = humanoidRootPart.Position
+            local look = (camera.Focus.Position - camera.CFrame.Position).Unit
+            local move = Vector3.zero
 
--- Havada sabit tut
-RunService.Heartbeat:Connect(function()
-    if autoFarmEnabled and humanoidRootPart then
-        local pos = humanoidRootPart.Position
-        humanoidRootPart.Velocity = Vector3.zero
-        humanoidRootPart.CFrame = CFrame.new(pos.X, SABIT_YUKSEKLIK, pos.Z)
+            if userInputService:IsKeyDown(Enum.KeyCode.W) then move += Vector3.new(0, 0, -1) end
+            if userInputService:IsKeyDown(Enum.KeyCode.S) then move += Vector3.new(0, 0, 1) end
+            if userInputService:IsKeyDown(Enum.KeyCode.A) then move += Vector3.new(-1, 0, 0) end
+            if userInputService:IsKeyDown(Enum.KeyCode.D) then move += Vector3.new(1, 0, 0) end
+            if userInputService:IsKeyDown(Enum.KeyCode.Space) then move += Vector3.new(0, 1, 0)
+            elseif userInputService:IsKeyDown(Enum.KeyCode.LeftControl) then move += Vector3.new(0, -1, 0) end
+
+            local speed = tonumber(flySpeedBox.Text) or 50
+            humanoidRootPart.CFrame = CFrame.new(pos, pos + look) * CFrame.new(move * speed)
+        end)
+    else
+        humanoid.PlatformStand = false
+        workspace.Gravity = defaultGravity
+        flyButton.Text = "Fly"
+        flyButton.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+        if flyLoop then flyLoop:Disconnect() end
     end
 end)
 
--- Tween fonksiyonu
-local function tweenTo(position)
-    local goal = { CFrame = CFrame.new(Vector3.new(position.X, SABIT_YUKSEKLIK, position.Z)) }
-    local tweenInfo = TweenInfo.new(0.4, Enum.EasingStyle.Linear)
-    local tween = TweenService:Create(humanoidRootPart, tweenInfo, goal)
-    tween:Play()
-    tween.Completed:Wait()
-end
-
--- Farm başlat
-local function startTweenFarm()
-    while autoFarmEnabled do
-        for _, stageName in ipairs(stageOrder) do
-            if not autoFarmEnabled then return end
-            local targetPart = findDarkness(stageName)
-            if targetPart then
-                status.Text = "🟡 " .. stageName .. " → Tween"
-                pcall(function()
-                    tweenTo(targetPart.Position)
-                end)
-                task.wait(3)
-            else
-                status.Text = " " .. stageName .. " bulunamadı"
-                task.wait(1)
-            end
-        end
-
-        -- Trigger'a ışınla
-        local trigger = getTriggerPart()
-        if trigger then
-            status.Text = " Trigger'ın üstüne gidiliyor"
-            pcall(function()
-                local aboveTriggerPos = Vector3.new(trigger.Position.X, SABIT_YUKSEKLIK, trigger.Position.Z)
-                local goal = { CFrame = CFrame.new(aboveTriggerPos) }
-                local tweenInfo = TweenInfo.new(0.4, Enum.EasingStyle.Linear)
-                local tween = TweenService:Create(humanoidRootPart, tweenInfo, goal)
-                tween:Play()
-                tween.Completed:Wait()
-            end)
-
-            -- Sonra düşmesi için sabitliği kaldır
-            status.Text = "⏬ Trigger'a düşülüyor"
-            task.wait(0.2)
-            autoFarmEnabled = false -- Sabitliği kapat
-            RunService.Heartbeat:Wait() -- bir frame bekle
-
-            -- Sabit kalmayı geçici olarak kapat
-            local pos = trigger.Position
-            humanoidRootPart.CFrame = CFrame.new(Vector3.new(pos.X, SABIT_YUKSEKLIK + 1, pos.Z))
-            humanoidRootPart.Velocity = Vector3.zero
-
-            task.wait(18)
-
-            autoFarmEnabled = true
+-- NoClip Fonksiyonu
+noclipButton.MouseButton1Click:Connect(function()
+    noclip = not noclip
+    for _, part in ipairs(character:GetDescendants()) do
+        if part:IsA("BasePart") then
+            part.CanCollide = not noclip
         end
     end
-end
+    noclipButton.Text = noclip and "Clip" or "NoClip"
+    noclipButton.BackgroundColor3 = noclip and Color3.fromRGB(50, 255, 50) or Color3.fromRGB(255, 50, 50)
+end)
 
--- ScreenGui
-local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "VolixHubGui"
-screenGui.Parent = player:WaitForChild("PlayerGui")
-screenGui.ResetOnSpawn = false
-
-local frameSize = UDim2.new(0, 400, 0, 300) -- Jump Power için yükseklik artırıldı
-local framePos = UDim2.new(0.5, -200, 0.5, -150)
-
--- Loading Frame
-local loadingFrame = Instance.new("Frame")
-loadingFrame.Size = frameSize
-loadingFrame.Position = framePos
-loadingFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-loadingFrame.BorderSizePixel = 0
-loadingFrame.Parent = screenGui
-
-Instance.new("UICorner", loadingFrame).CornerRadius = UDim.new(0, 12)
-
-local loadingText = Instance.new("TextLabel")
-loadingText.Size = UDim2.new(0.6, 0, 0.3, 0)
-loadingText.Position = UDim2.new(0.2, 0, 0.25, 0)
-loadingText.BackgroundTransparency = 1
-loadingText.Text = "Loading..."
-loadingText.TextColor3 = Color3.fromRGB(255, 255, 255)
-loadingText.Font = Enum.Font.GothamBold
-loadingText.TextScaled = true
-loadingText.Parent = loadingFrame
-
-local volixHubText = Instance.new("TextLabel")
-volixHubText.Size = UDim2.new(0.6, 0, 0.2, 0)
-volixHubText.Position = UDim2.new(0.2, 0, 0.05, 0)
-volixHubText.BackgroundTransparency = 1
-volixHubText.Text = "Volix Hub V2.7 (Beta)"
-loadingText.TextColor3 = Color3.fromRGB(255, 255, 255)
-loadingText.Font = Enum.Font.GothamBold
-loadingText.TextScaled = true
-loadingText.TextSize = 16
-loadingText.Parent = loadingFrame
-
-local barBG = Instance.new("Frame")
-barBG.Size = UDim2.new(1, -40, 0, 20)
-barBG.Position = UDim2.new(0, 20, 1, -30)
-barBG.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-barBG.BorderSizePixel = 0
-barBG.Parent = loadingFrame
-
-Instance.new("UICorner", barBG).CornerRadius = UDim.new(0, 6)
-
-local progressBar = Instance.new("Frame")
-progressBar.Size = UDim2.new(0, 0, 1, 0)
-progressBar.BackgroundColor3 = Color3.fromRGB(50, 50, 255)
-progressBar.Parent = barBG
-Instance.new("UICorner", progressBar).CornerRadius = UDim.new(0, 6)
-
-TweenService:Create(progressBar, TweenInfo.new(3), { Size = UDim2.new(1, 0, 1, 0) }):Play()
-task.wait(3)
-
--- Hide Loading
-for _, child in ipairs(loadingFrame:GetChildren()) do
-    if child:IsA("GuiObject") then
-        TweenService:Create(child, TweenInfo.new(1), {
-            BackgroundTransparency = 1,
-            TextTransparency = child:IsA("TextLabel") and 1 or nil
-        }):Play()
+-- Speed Hack Fonksiyonu
+speedButton.MouseButton1Click:Connect(function()
+    speedHackEnabled = not speedHackEnabled
+    if speedHackEnabled then
+        local speed = math.clamp(tonumber(speedBox.Text) or defaultWalkspeed, 16, MAX_WALK_SPEED)
+        humanoid.WalkSpeed = speed
+        speedButton.Text = "Speed: ON"
+        speedButton.BackgroundColor3 = Color3.fromRGB(50, 255, 50)
+    else
+        humanoid.WalkSpeed = defaultWalkspeed
+        speedButton.Text = "Speed: OFF"
+        speedButton.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
     end
-end
+end)
 
-TweenService:Create(loadingFrame, TweenInfo.new(1), { BackgroundTransparency = 1 }):Play()
-TweenService:Create(barBG, TweenInfo.new(1), { BackgroundTransparency = 1 }):Play()
-TweenService:Create(progressBar, TweenInfo.new(1), { BackgroundTransparency = 1 }):Play()
+-- Jump Power Fonksiyonu
+jumpPowerButton.MouseButton1Click:Connect(function()
+    jumpPowerEnabled = not jumpPowerEnabled
+    if jumpPowerEnabled then
+        local power = math.clamp(tonumber(jumpPowerBox.Text) or defaultJumpPower, 0, MAX_JUMP_POWER)
+        humanoid.JumpPower = power
+        jumpPowerButton.Text = "JumpPower: ON"
+        jumpPowerButton.BackgroundColor3 = Color3.fromRGB(50, 255, 50)
+    else
+        humanoid.JumpPower = defaultJumpPower
+        jumpPowerButton.Text = "JumpPower: OFF"
+        jumpPowerButton.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+    end
+end)
 
-task.delay(1, function()
-    loadingFrame:Destroy()
+-- Tema Fonksiyonu
+themeButton.MouseButton1Click:Connect(function()
+    darkTheme = not darkTheme
+    local bgColor = darkTheme and Color3.fromRGB(35, 35, 35) or Color3.fromRGB(220, 220, 220)
+    local panelColor = darkTheme and Color3.fromRGB(40, 40, 40) or Color3.fromRGB(180, 180, 180)
+    local textColor = darkTheme and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(0, 0, 0)
 
-    -- Main GUI
-    local mainFrame = Instance.new("Frame")
-    mainFrame.Name = "MainFrame"
-    mainFrame.Size = frameSize
-    mainFrame.Position = framePos
-    mainFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
-    mainFrame.BackgroundTransparency = 1
-    mainFrame.Active = true
-    mainFrame.Draggable = true
-    mainFrame.Parent = screenGui
-    Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 12)
-
-    local title = Instance.new("TextLabel")
-    title.Name = "Title"
-    title.Size = UDim2.new(0, 150, 0, 25)
-    title.Position = UDim2.new(1, -155, 0, 5)
-    title.BackgroundTransparency = 1
-    title.Text = "Volix Hub V2.7 (Beta)"
-    title.TextColor3 = Color3.fromRGB(255, 255, 255)
-    title.Font = Enum.Font.SourceSansBold
-    title.TextSize = 18
-    title.TextXAlignment = Enum.TextXAlignment.Right
-    title.Parent = mainFrame
-
-    local closeButton = Instance.new("TextButton")
-    closeButton.Size = UDim2.new(0, 30, 0, 25)
-    closeButton.Position = UDim2.new(0, 5, 0, 5)
-    closeButton.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
-    closeButton.Text = "X"
-    closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-    closeButton.Font = Enum.Font.SourceSansBold
-    closeButton.TextSize = 18
-    closeButton.Parent = mainFrame
-    Instance.new("UICorner", closeButton).CornerRadius = UDim.new(0, 6)
-
-    local settingsButton = Instance.new("TextButton")
-    settingsButton.Name = "SettingsButton"
-    settingsButton.Size = UDim2.new(0, 30, 0, 25)
-    settingsButton.Position = UDim2.new(0, 40, 0, 5)
-    settingsButton.BackgroundColor3 = Color3.fromRGB(70, 70, 255)
-    settingsButton.Text = "⚙"
-    settingsButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-    settingsButton.Font = Enum.Font.SourceSansBold
-    settingsButton.TextSize = 18
-    settingsButton.Parent = mainFrame
-    Instance.new("UICorner", settingsButton).CornerRadius = UDim.new(0, 6)
-
-    -- Fly Button
-    local flyButton = Instance.new("TextButton")
-    flyButton.Size = UDim2.new(0, 100, 0, 25)
-    flyButton.Position = UDim2.new(0, 5, 0, 35)
-    flyButton.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
-    flyButton.Text = "Fly"
-    flyButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-    flyButton.Font = Enum.Font.SourceSansBold
-    flyButton.TextSize = 18
-    flyButton.Parent = mainFrame
-    Instance.new("UICorner", flyButton).CornerRadius = UDim.new(0, 6)
-
-    local flySpeedBox = Instance.new("TextBox")
-    flySpeedBox.Size = UDim2.new(0, 50, 0, 25)
-    flySpeedBox.Position = UDim2.new(0, 110, 0, 35)
-    flySpeedBox.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
-    flySpeedBox.Text = "50"
-    flySpeedBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-    flySpeedBox.Font = Enum.Font.SourceSansBold
-    flySpeedBox.TextSize = 18
-    flySpeedBox.ClearTextOnFocus = false
-    flySpeedBox.Parent = mainFrame
-    Instance.new("UICorner", flySpeedBox).CornerRadius = UDim.new(0, 6)
-
-    -- Auto Farm Button
-    local autoFarmButton = Instance.new("TextButton")
-    autoFarmButton.Size = UDim2.new(0, 100, 0, 25)
-    autoFarmButton.Position = UDim2.new(0, 5, 0, 70)
-    autoFarmButton.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
-    autoFarmButton.Text = "Farm: OFF"
-    autoFarmButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-    autoFarmButton.Font = Enum.Font.SourceSansBold
-    autoFarmButton.TextSize = 18
-    autoFarmButton.Parent = mainFrame
-    Instance.new("UICorner", autoFarmButton).CornerRadius = UDim.new(0, 6)
-
-    -- NoClip Button
-    local noclipButton = Instance.new("TextButton")
-    noclipButton.Size = UDim2.new(0, 100, 0, 25)
-    noclipButton.Position = UDim2.new(0, 5, 0, 105)
-    noclipButton.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
-    noclipButton.Text = "NoClip"
-    noclipButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-    noclipButton.Font = Enum.Font.SourceSansBold
-    noclipButton.TextSize = 18
-    noclipButton.Parent = mainFrame
-    Instance.new("UICorner", noclipButton).CornerRadius = UDim.new(0, 6)
-
-    -- ESP Button
-    local espButton = Instance.new("TextButton")
-    espButton.Name = "ESPButton"
-    espButton.Size = UDim2.new(0, 100, 0, 25)
-    espButton.Position = UDim2.new(0, 5, 0, 140)
-    espButton.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
-    espButton.Text = "ESP: OFF"
-    espButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-    espButton.Font = Enum.Font.SourceSansBold
-    espButton.TextSize = 18
-    espButton.Parent = mainFrame
-    Instance.new("UICorner", espButton).CornerRadius = UDim.new(0, 6)
-
-    -- Speed Hack Button
-    local speedButton = Instance.new("TextButton")
-    speedButton.Name = "SpeedButton"
-    speedButton.Size = UDim2.new(0, 100, 0, 25)
-    speedButton.Position = UDim2.new(0, 5, 0, 175)
-    speedButton.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
-    speedButton.Text = "Speed: OFF"
-    speedButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-    speedButton.Font = Enum.Font.SourceSansBold
-    speedButton.TextSize = 18
-    speedButton.Parent = mainFrame
-    Instance.new("UICorner", speedButton).CornerRadius = UDim.new(0, 6)
-
-    local speedBox = Instance.new("TextBox")
-    speedBox.Name = "SpeedBox"
-    speedBox.Size = UDim2.new(0, 50, 0, 25)
-    speedBox.Position = UDim2.new(0, 110, 0, 175)
-    speedBox.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
-    speedBox.Text = tostring(defaultWalkspeed)
-    speedBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-    speedBox.Font = Enum.Font.SourceSansBold
-    speedBox.TextSize = 18
-    speedBox.ClearTextOnFocus = false
-    speedBox.Parent = mainFrame
-    Instance.new("UICorner", speedBox).CornerRadius = UDim.new(0, 6)
-
-    -- Jump Power Button
-    local jumpPowerButton = Instance.new("TextButton")
-    jumpPowerButton.Name = "JumpPowerButton"
-    jumpPowerButton.Size = UDim2.new(0, 100, 0, 25)
-    jumpPowerButton.Position = UDim2.new(0, 5, 0, 210)
-    jumpPowerButton.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
-    jumpPowerButton.Text = "JumpPower: OFF"
-    jumpPowerButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-    jumpPowerButton.Font = Enum.Font.SourceSansBold
-    jumpPowerButton.TextSize = 16
-    jumpPowerButton.Parent = mainFrame
-    Instance.new("UICorner", jumpPowerButton).CornerRadius = UDim.new(0, 6)
-
-    -- Jump Power TextBox
-    local jumpPowerBox = Instance.new("TextBox")
-    jumpPowerBox.Name = "JumpPowerBox"
-    jumpPowerBox.Size = UDim2.new(0, 50, 0, 25)
-    jumpPowerBox.Position = UDim2.new(0, 110, 0, 210)
-    jumpPowerBox.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
-    jumpPowerBox.Text = tostring(defaultJumpPower)
-    jumpPowerBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-    jumpPowerBox.Font = Enum.Font.SourceSansBold
-    jumpPowerBox.TextSize = 16
-    jumpPowerBox.ClearTextOnFocus = false
-    jumpPowerBox.Parent = mainFrame
-    Instance.new("UICorner", jumpPowerBox).CornerRadius = UDim.new(0, 6)
-
-    -- Settings Panel
-    local settingsPanel = Instance.new("Frame")
-    settingsPanel.Name = "SettingsPanel"
-    settingsPanel.Size = UDim2.new(1, -10, 1, -40)
-    settingsPanel.Position = UDim2.new(0, 5, 0, 35)
-    settingsPanel.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-    settingsPanel.Visible = false
-    settingsPanel.Parent = mainFrame
-    Instance.new("UICorner", settingsPanel).CornerRadius = UDim.new(0, 8)
-
-    local themeButton = Instance.new("TextButton")
-    themeButton.Size = UDim2.new(0, 160, 0, 30)
-    themeButton.Position = UDim2.new(0.5, -80, 0, 20)
-    themeButton.AnchorPoint = Vector2.new(0.5, 0)
-    themeButton.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
-    themeButton.Text = "Tema: Dark"
-    themeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-    themeButton.Font = Enum.Font.SourceSansBold
-    themeButton.TextSize = 16
-    themeButton.Parent = settingsPanel
-    Instance.new("UICorner", themeButton).CornerRadius = UDim.new(0, 6)
-
-    local configButton = Instance.new("TextButton")
-    configButton.Size = UDim2.new(0, 160, 0, 30)
-    configButton.Position = UDim2.new(0.5, -80, 0, 60)
-    configButton.AnchorPoint = Vector2.new(0.5, 0)
-    configButton.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
-    configButton.Text = "Config Save/Load"
-    configButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-    configButton.Font = Enum.Font.SourceSansBold
-    configButton.TextSize = 14
-    configButton.Parent = settingsPanel
-    Instance.new("UICorner", configButton).CornerRadius = UDim.new(0, 6)
-
-    local resetButton = Instance.new("TextButton")
-    resetButton.Size = UDim2.new(0, 160, 0, 30)
-    resetButton.Position = UDim2.new(0.5, -80, 0, 100)
-    resetButton.AnchorPoint = Vector2.new(0.5, 0)
-    resetButton.BackgroundColor3 = Color3.fromRGB(150, 50, 50)
-    resetButton.Text = "Config Reset"
-    resetButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-    resetButton.Font = Enum.Font.SourceSansBold
-    resetButton.TextSize = 14
-    resetButton.Parent = settingsPanel
-    Instance.new("UICorner", resetButton).CornerRadius = UDim.new(0, 6)
-
-    TweenService:Create(mainFrame, TweenInfo.new(1), {
-        BackgroundTransparency = 0
-    }):Play()
-
-    -- Buton Fonksiyonları
-    closeButton.MouseButton1Click:Connect(function()
-        screenGui:Destroy()
-    end)
-
-    settingsButton.MouseButton1Click:Connect(function()
-        settingsPanel.Visible = not settingsPanel.Visible
-
-        -- Tüm butonların görünürlüğünü ayarla
-        for _, child in ipairs(mainFrame:GetChildren()) do
-            if child:IsA("TextButton") and child ~= settingsButton and child ~= closeButton then
-                child.Visible = not settingsPanel.Visible
+    -- Tema değişikliği
+    mainFrame.BackgroundColor3 = bgColor
+    settingsPanel.BackgroundColor3 = panelColor
+    for _, child in ipairs(mainFrame:GetDescendants()) do
+        if child:IsA("TextLabel") or child:IsA("TextButton") then
+            child.TextColor3 = textColor
+            if child:IsA("TextButton") and child ~= closeButton then
+                child.BackgroundColor3 = darkTheme and Color3.fromRGB(100, 100, 100) or Color3.fromRGB(150, 150, 150)
             end
         end
+    end
+    themeButton.Text = "Tema: " .. (darkTheme and "Dark" or "Light")
+end)
 
-        -- Başlık ve close butonu hariç diğerlerini gizle
-        title.Visible = not settingsPanel.Visible
-        flySpeedBox.Visible = not settingsPanel.Visible
-        speedBox.Visible = not settingsPanel.Visible
-        jumpPowerBox.Visible = not settingsPanel.Visible
-    end)
-
-    -- Fly Function
-    flyButton.MouseButton1Click:Connect(function()
-        flying = not flying
-        if flying then
-            humanoid.PlatformStand = true
-            workspace.Gravity = 0
-            flyButton.Text = "Un Fly"
-            flyButton.BackgroundColor3 = Color3.fromRGB(50, 255, 50)
-
-            flyLoop = runService.RenderStepped:Connect(function()
-                local pos = humanoidRootPart.Position
-                local look = (camera.Focus.Position - camera.CFrame.Position).Unit
-                local move = Vector3.zero
-
-                if userInputService:IsKeyDown(Enum.KeyCode.W) then move += Vector3.new(0, 0, -1) end
-                if userInputService:IsKeyDown(Enum.KeyCode.S) then move += Vector3.new(0, 0, 1) end
-                if userInputService:IsKeyDown(Enum.KeyCode.A) then move += Vector3.new(-1, 0, 0) end
-                if userInputService:IsKeyDown(Enum.KeyCode.D) then move += Vector3.new(1, 0, 0) end
-                if userInputService:IsKeyDown(Enum.KeyCode.Space) then move += Vector3.new(0, 1, 0)
-                elseif userInputService:IsKeyDown(Enum.KeyCode.LeftControl) then move += Vector3.new(0, -1, 0) end
-
-                local speed = tonumber(flySpeedBox.Text) or 50
-                humanoidRootPart.CFrame = CFrame.new(pos, pos + look) * CFrame.new(move * speed)
-            end)
-        else
-            humanoid.PlatformStand = false
-            workspace.Gravity = defaultGravity
-            flyButton.Text = "Fly"
-            flyButton.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
-            if flyLoop then flyLoop:Disconnect() end
-        end
-    end)
-
-    -- Auto Farm Function
-    autoFarmButton.MouseButton1Click:Connect(function()
-        autoFarmEnabled = not autoFarmEnabled
-        if autoFarmEnabled then
-            autoFarmButton.Text = "Farm: ON"
-            autoFarmButton.BackgroundColor3 = Color3.fromRGB(50, 255, 50)
-            task.spawn(startTweenFarm)
-        else
-            autoFarmButton.Text = "Farm: OFF"
-            autoFarmButton.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
-        end
-    end)
-
-    -- NoClip Function
-    noclipButton.MouseButton1Click:Connect(function()
-        noclip = not noclip
-        for _, part in ipairs(character:GetDescendants()) do
-            if part:IsA("BasePart") then
-                part.CanCollide = not noclip
-            end
-        end
-        noclipButton.Text = noclip and "Clip" or "NoClip"
-        noclipButton.BackgroundColor3 = noclip and Color3.fromRGB(50, 255, 50) or Color3.fromRGB(255, 50, 50)
-    end)
-
-    -- ESP Function
-    espButton.MouseButton1Click:Connect(function()
-        espEnabled = not espEnabled
-        ESP:Toggle(espEnabled)
-        espButton.Text = espEnabled and "ESP: ON" or "ESP: OFF"
-        espButton.BackgroundColor3 = espEnabled and Color3.fromRGB(50, 255, 50) or Color3.fromRGB(255, 50, 50)
-
-        if _G.volixConfig then
-            _G.volixConfig.espEnabled = espEnabled
-        end
-    end)
-
-    -- Speed Hack Function
-    speedBox.FocusLost:Connect(function()
-        local speed = tonumber(speedBox.Text) or defaultWalkspeed
-        speed = math.clamp(speed, 16, MAX_WALK_SPEED)
-        speedBox.Text = tostring(speed)
-
-        if speedHackEnabled then
-            humanoid.WalkSpeed = speed
-        end
-    end)
-
-    speedButton.MouseButton1Click:Connect(function()
-        speedHackEnabled = not speedHackEnabled
-        if speedHackEnabled then
-            local speed = math.clamp(tonumber(speedBox.Text) or defaultWalkspeed, 16, MAX_WALK_SPEED)
-            humanoid.WalkSpeed = speed
-            speedButton.Text = "Speed: ON"
-            speedButton.BackgroundColor3 = Color3.fromRGB(50, 255, 50)
-        else
-            humanoid.WalkSpeed = defaultWalkspeed
-            speedButton.Text = "Speed: OFF"
-            speedButton.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
-        end
-
-        if _G.volixConfig then
-            _G.volixConfig.speedHackEnabled = speedHackEnabled
-            _G.volixConfig.speedValue = tonumber(speedBox.Text)
-        end
-    end)
-
-    -- Jump Power Function
-    jumpPowerBox.FocusLost:Connect(function()
-        local power = tonumber(jumpPowerBox.Text) or defaultJumpPower
-        power = math.clamp(power, 0, MAX_JUMP_POWER)
-        jumpPowerBox.Text = tostring(power)
-
-        if jumpPowerEnabled then
-            humanoid.JumpPower = power
-        end
-    end)
-
-    jumpPowerButton.MouseButton1Click:Connect(function()
-        jumpPowerEnabled = not jumpPowerEnabled
-        if jumpPowerEnabled then
-            local power = math.clamp(tonumber(jumpPowerBox.Text) or defaultJumpPower, 0, MAX_JUMP_POWER)
-            humanoid.JumpPower = power
-            jumpPowerButton.Text = "JumpPower: ON"
-            jumpPowerButton.BackgroundColor3 = Color3.fromRGB(50, 255, 50)
-        else
-            humanoid.JumpPower = defaultJumpPower
-            jumpPowerButton.Text = "JumpPower: OFF"
-            jumpPowerButton.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
-        end
-
-        if _G.volixConfig then
-            _G.volixConfig.jumpPowerEnabled = jumpPowerEnabled
-            _G.volixConfig.jumpPowerValue = tonumber(jumpPowerBox.Text)
-        end
-    end)
-
-    -- Theme Function
-    themeButton.MouseButton1Click:Connect(function()
-        darkTheme = not darkTheme
-        local bgColor = darkTheme and Color3.fromRGB(35, 35, 35) or Color3.fromRGB(220, 220, 220)
-        local panelColor = darkTheme and Color3.fromRGB(40, 40, 40) or Color3.fromRGB(180, 180, 180)
-        local textColor = darkTheme and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(0, 0, 0)
-
-        -- Ana frame ve ayar paneli rengi
-        mainFrame.BackgroundColor3 = bgColor
-        settingsPanel.BackgroundColor3 = panelColor
-
-        -- Tüm text ve buton renkleri
-        for _, child in
+-- Config Sistemi
+_G.volixConfig = _G.volixConfig or {}
+configButton.MouseButton1Click:Connect(function()
+    -- Config yükleme veya kaydetme işlemleri burada yapılabilir
+end)

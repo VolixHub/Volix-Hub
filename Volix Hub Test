@@ -1,30 +1,12 @@
 local Players = game:GetService("Players")
-local player = Players.LocalPlayer
-local character = player.Character or player.CharacterAdded:Wait()
-local humanoid = character:WaitForChild("Humanoid")
-local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
-local runService = game:GetService("RunService")
-
-local defaultWalkspeed = humanoid.WalkSpeed
-local defaultJumpPower = humanoid.JumpPower
-local flying = false
-local noclip = false
-local espEnabled = false
-local speedHackEnabled = false
-local jumpPowerEnabled = false
-local darkTheme = true
-local MAX_WALK_SPEED = 150
-local MAX_JUMP_POWER = 200
-
+local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
-local Players = game:GetService("Players")
+
 local player = Players.LocalPlayer
-local playerGui = player:WaitForChild("PlayerGui")
 local character = player.Character or player.CharacterAdded:Wait()
 local humanoid = character:WaitForChild("Humanoid")
 local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
 local userInputService = game:GetService("UserInputService")
-local runService = game:GetService("RunService")
 local camera = workspace.CurrentCamera
 
 -- Ayarlar
@@ -38,11 +20,27 @@ local defaultJumpPower = humanoid.JumpPower
 local flyLoop
 local darkTheme = true
 local espEnabled = false
+local autoFarmEnabled = false
 
 -- Limitler
 local MAX_FLY_SPEED = 1000
 local MAX_WALK_SPEED = 1000
 local MAX_JUMP_POWER = 500
+local SABIT_YUKSEKLIK = 20
+
+-- Stage listesi (10. Stage eklendi)
+local stageOrder = {
+    "CaveStage1",
+    "CaveStage2",
+    "CaveStage3",
+    "CaveStage4",
+    "CaveStage5",
+    "CaveStage6",
+    "CaveStage7",
+    "CaveStage8",
+    "CaveStage9",
+    "CaveStage10",
+}
 
 -- ESP Sistemi
 local ESP = {
@@ -115,10 +113,103 @@ function ESP:Clear()
     self.Names = {}
 end
 
+-- Darkness bul
+local function findDarkness(stageName)
+    local stages = workspace:FindFirstChild("BoatStages"):FindFirstChild("NormalStages")
+    if stages then
+        local stage = stages:FindFirstChild(stageName)
+        if stage then
+            return stage:FindFirstChild("Darkness") or stage:FindFirstChildWhichIsA("BasePart", true)
+        end
+    end
+    return nil
+end
+
+local function getTriggerPart()
+    local chest = workspace:FindFirstChild("BoatStages") and workspace.BoatStages:FindFirstChild("NormalStages")
+    if chest then
+        local theEnd = chest:FindFirstChild("TheEnd")
+        if theEnd then
+            local goldenChest = theEnd:FindFirstChild("GoldenChest") -- düzeltildi (boşluksuz)
+            if goldenChest then
+                return goldenChest:FindFirstChild("Trigger")
+            end
+        end
+    end
+    return nil
+end
+
+-- Havada sabit tut
+RunService.Heartbeat:Connect(function()
+    if autoFarmEnabled and humanoidRootPart then
+        local pos = humanoidRootPart.Position
+        humanoidRootPart.Velocity = Vector3.zero
+        humanoidRootPart.CFrame = CFrame.new(pos.X, SABIT_YUKSEKLIK, pos.Z)
+    end
+end)
+
+-- Tween fonksiyonu
+local function tweenTo(position)
+    local goal = { CFrame = CFrame.new(Vector3.new(position.X, SABIT_YUKSEKLIK, position.Z)) }
+    local tweenInfo = TweenInfo.new(0.4, Enum.EasingStyle.Linear)
+    local tween = TweenService:Create(humanoidRootPart, tweenInfo, goal)
+    tween:Play()
+    tween.Completed:Wait()
+end
+
+-- Farm başlat
+local function startTweenFarm()
+    while autoFarmEnabled do
+        for _, stageName in ipairs(stageOrder) do
+            if not autoFarmEnabled then return end
+            local targetPart = findDarkness(stageName)
+            if targetPart then
+                status.Text = "🟡 " .. stageName .. " → Tween"
+                pcall(function()
+                    tweenTo(targetPart.Position)
+                end)
+                task.wait(3)
+            else
+                status.Text = " " .. stageName .. " bulunamadı"
+                task.wait(1)
+            end
+        end
+
+        -- Trigger'a ışınla
+        local trigger = getTriggerPart()
+        if trigger then
+            status.Text = " Trigger'ın üstüne gidiliyor"
+            pcall(function()
+                local aboveTriggerPos = Vector3.new(trigger.Position.X, SABIT_YUKSEKLIK, trigger.Position.Z)
+                local goal = { CFrame = CFrame.new(aboveTriggerPos) }
+                local tweenInfo = TweenInfo.new(0.4, Enum.EasingStyle.Linear)
+                local tween = TweenService:Create(humanoidRootPart, tweenInfo, goal)
+                tween:Play()
+                tween.Completed:Wait()
+            end)
+
+            -- Sonra düşmesi için sabitliği kaldır
+            status.Text = "⏬ Trigger'a düşülüyor"
+            task.wait(0.2)
+            autoFarmEnabled = false -- Sabitliği kapat
+            RunService.Heartbeat:Wait() -- bir frame bekle
+
+            -- Sabit kalmayı geçici olarak kapat
+            local pos = trigger.Position
+            humanoidRootPart.CFrame = CFrame.new(Vector3.new(pos.X, SABIT_YUKSEKLIK + 1, pos.Z))
+            humanoidRootPart.Velocity = Vector3.zero
+
+            task.wait(18)
+
+            autoFarmEnabled = true
+        end
+    end
+end
+
 -- ScreenGui
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "VolixHubGui"
-screenGui.Parent = playerGui
+screenGui.Parent = player:WaitForChild("PlayerGui")
 screenGui.ResetOnSpawn = false
 
 local frameSize = UDim2.new(0, 400, 0, 300) -- Jump Power için yükseklik artırıldı
@@ -146,9 +237,9 @@ loadingText.Parent = loadingFrame
 
 local volixHubText = Instance.new("TextLabel")
 volixHubText.Size = UDim2.new(0.6, 0, 0.2, 0)
-loadingText.Position = UDim2.new(0.2, 0, 0.05, 0)
-loadingText.BackgroundTransparency = 1
-loadingText.Text = "Volix Hub V2.7 (Beta)"
+volixHubText.Position = UDim2.new(0.2, 0, 0.05, 0)
+volixHubText.BackgroundTransparency = 1
+volixHubText.Text = "Volix Hub V2.7 (Beta)"
 loadingText.TextColor3 = Color3.fromRGB(255, 255, 255)
 loadingText.Font = Enum.Font.GothamBold
 loadingText.TextScaled = true
@@ -265,8 +356,8 @@ task.delay(1, function()
     local autoFarmButton = Instance.new("TextButton")
     autoFarmButton.Size = UDim2.new(0, 100, 0, 25)
     autoFarmButton.Position = UDim2.new(0, 5, 0, 70)
-    autoFarmButton.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
-    autoFarmButton.Text = "Auto Farm"
+    autoFarmButton.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+    autoFarmButton.Text = "Farm: OFF"
     autoFarmButton.TextColor3 = Color3.fromRGB(255, 255, 255)
     autoFarmButton.Font = Enum.Font.SourceSansBold
     autoFarmButton.TextSize = 18
@@ -460,110 +551,12 @@ task.delay(1, function()
     autoFarmButton.MouseButton1Click:Connect(function()
         autoFarmEnabled = not autoFarmEnabled
         if autoFarmEnabled then
-            autoFarmButton.Text = "Stop Farm"
-            autoFarmButton.BackgroundColor3 = Color3.fromRGB(0, 180, 0)
-            task.spawn(function()
-                local SABIT_YUKSEKLIK = 20
-                local stageOrder = {
-                    "CaveStage1",
-                    "CaveStage2",
-                    "CaveStage3",
-                    "CaveStage4",
-                    "CaveStage5",
-                    "CaveStage6",
-                    "CaveStage7",
-                    "CaveStage8",
-                    "CaveStage9",
-                    "CaveStage10",
-                }
-
-                local function findDarkness(stageName)
-                    local stages = workspace:FindFirstChild("BoatStages"):FindFirstChild("NormalStages")
-                    if stages then
-                        local stage = stages:FindFirstChild(stageName)
-                        if stage then
-                            return stage:FindFirstChild("Darkness") or stage:FindFirstChildWhichIsA("BasePart", true)
-                        end
-                    end
-                    return nil
-                end
-
-                local function getTriggerPart()
-                    local chest = workspace:FindFirstChild("BoatStages") and workspace.BoatStages:FindFirstChild("NormalStages")
-                    if chest then
-                        local theEnd = chest:FindFirstChild("TheEnd")
-                        if theEnd then
-                            local goldenChest = theEnd:FindFirstChild("GoldenChest")
-                            if goldenChest then
-                                return goldenChest:FindFirstChild("Trigger")
-                            end
-                        end
-                    end
-                    return nil
-                end
-
-                RunService.Heartbeat:Connect(function()
-                    if autoFarmEnabled and humanoidRootPart then
-                        local pos = humanoidRootPart.Position
-                        humanoidRootPart.Velocity = Vector3.zero
-                        humanoidRootPart.CFrame = CFrame.new(pos.X, SABIT_YUKSEKLIK, pos.Z)
-                    end
-                end)
-
-                local function tweenTo(position)
-                    local goal = { CFrame = CFrame.new(Vector3.new(position.X, SABIT_YUKSEKLIK, position.Z)) }
-                    local tweenInfo = TweenInfo.new(0.4, Enum.EasingStyle.Linear)
-                    local tween = TweenService:Create(humanoidRootPart, tweenInfo, goal)
-                    tween:Play()
-                    tween.Completed:Wait()
-                end
-
-                local function startTweenFarm()
-                    while autoFarmEnabled do
-                        for _, stageName in ipairs(stageOrder) do
-                            if not autoFarmEnabled then return end
-                            local targetPart = findDarkness(stageName)
-                            if targetPart then
-                                pcall(function()
-                                    tweenTo(targetPart.Position)
-                                end)
-                                task.wait(3)
-                            else
-                                task.wait(1)
-                            end
-                        end
-
-                        local trigger = getTriggerPart()
-                        if trigger then
-                            pcall(function()
-                                local aboveTriggerPos = Vector3.new(trigger.Position.X, SABIT_YUKSEKLIK, trigger.Position.Z)
-                                local goal = { CFrame = CFrame.new(aboveTriggerPos) }
-                                local tweenInfo = TweenInfo.new(0.4, Enum.EasingStyle.Linear)
-                                local tween = TweenService:Create(humanoidRootPart, tweenInfo, goal)
-                                tween:Play()
-                                tween.Completed:Wait()
-                            end)
-
-                            task.wait(0.2)
-                            autoFarmEnabled = false
-                            RunService.Heartbeat:Wait()
-
-                            local pos = trigger.Position
-                            humanoidRootPart.CFrame = CFrame.new(Vector3.new(pos.X, SABIT_YUKSEKLIK + 1, pos.Z))
-                            humanoidRootPart.Velocity = Vector3.zero
-
-                            task.wait(18)
-
-                            autoFarmEnabled = true
-                        end
-                    end
-                end
-
-                startTweenFarm()
-            end)
+            autoFarmButton.Text = "Farm: ON"
+            autoFarmButton.BackgroundColor3 = Color3.fromRGB(50, 255, 50)
+            task.spawn(startTweenFarm)
         else
-            autoFarmButton.Text = "Auto Farm"
-            autoFarmButton.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
+            autoFarmButton.Text = "Farm: OFF"
+            autoFarmButton.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
         end
     end)
 
@@ -607,17 +600,24 @@ task.delay(1, function()
         if speedHackEnabled then
             local speed = math.clamp(tonumber(speedBox.Text) or defaultWalkspeed, 16, MAX_WALK_SPEED)
             humanoid.WalkSpeed = speed
+            speedButton.Text = "Speed: ON"
+            speedButton.BackgroundColor3 = Color3.fromRGB(50, 255, 50)
         else
             humanoid.WalkSpeed = defaultWalkspeed
+            speedButton.Text = "Speed: OFF"
+            speedButton.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
         end
-        speedButton.Text = speedHackEnabled and "Speed: ON" or "Speed: OFF"
-        speedButton.BackgroundColor3 = speedHackEnabled and Color3.fromRGB(50, 255, 50) or Color3.fromRGB(255, 50, 50)
+
+        if _G.volixConfig then
+            _G.volixConfig.speedHackEnabled = speedHackEnabled
+            _G.volixConfig.speedValue = tonumber(speedBox.Text)
+        end
     end)
 
     -- Jump Power Function
     jumpPowerBox.FocusLost:Connect(function()
         local power = tonumber(jumpPowerBox.Text) or defaultJumpPower
-        power = math.clamp(power, 50, MAX_JUMP_POWER)
+        power = math.clamp(power, 0, MAX_JUMP_POWER)
         jumpPowerBox.Text = tostring(power)
 
         if jumpPowerEnabled then
@@ -628,15 +628,32 @@ task.delay(1, function()
     jumpPowerButton.MouseButton1Click:Connect(function()
         jumpPowerEnabled = not jumpPowerEnabled
         if jumpPowerEnabled then
-            local power = math.clamp(tonumber(jumpPowerBox.Text) or defaultJumpPower, 50, MAX_JUMP_POWER)
+            local power = math.clamp(tonumber(jumpPowerBox.Text) or defaultJumpPower, 0, MAX_JUMP_POWER)
             humanoid.JumpPower = power
+            jumpPowerButton.Text = "JumpPower: ON"
+            jumpPowerButton.BackgroundColor3 = Color3.fromRGB(50, 255, 50)
         else
             humanoid.JumpPower = defaultJumpPower
+            jumpPowerButton.Text = "JumpPower: OFF"
+            jumpPowerButton.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
         end
-        jumpPowerButton.Text = jumpPowerEnabled and "JumpPower: ON" or "JumpPower: OFF"
-        jumpPowerButton.BackgroundColor3 = jumpPowerEnabled and Color3.fromRGB(50, 255, 50) or Color3.fromRGB(255, 50, 50)
+
+        if _G.volixConfig then
+            _G.volixConfig.jumpPowerEnabled = jumpPowerEnabled
+            _G.volixConfig.jumpPowerValue = tonumber(jumpPowerBox.Text)
+        end
     end)
 
     -- Theme Function
     themeButton.MouseButton1Click:Connect(function()
-        darkTheme
+        darkTheme = not darkTheme
+        local bgColor = darkTheme and Color3.fromRGB(35, 35, 35) or Color3.fromRGB(220, 220, 220)
+        local panelColor = darkTheme and Color3.fromRGB(40, 40, 40) or Color3.fromRGB(180, 180, 180)
+        local textColor = darkTheme and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(0, 0, 0)
+
+        -- Ana frame ve ayar paneli rengi
+        mainFrame.BackgroundColor3 = bgColor
+        settingsPanel.BackgroundColor3 = panelColor
+
+        -- Tüm text ve buton renkleri
+        for _, child in

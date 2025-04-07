@@ -1,0 +1,79 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+
+local player = Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local humanoid = character:WaitForChild("Humanoid")
+local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
+
+local SABIT_YUKSEKLIK = 20
+local autoFarmEnabled = false
+
+local stageOrder = {
+    "CaveStage1", "CaveStage2", "CaveStage3", 
+    "CaveStage4", "CaveStage5", "CaveStage6",
+    "CaveStage7", "CaveStage8", "CaveStage9", 
+    "CaveStage10"
+}
+
+local function findDarkness(stageName)
+    local stages = workspace:FindFirstChild("BoatStages"):FindFirstChild("NormalStages")
+    return stages and stages:FindFirstChild(stageName):FindFirstChild("Darkness")
+end
+
+local function getTriggerPart()
+    local chest = workspace:FindFirstChild("BoatStages") and workspace.BoatStages:FindFirstChild("NormalStages")
+    return chest and chest:FindFirstChild("TheEnd"):FindFirstChild("GoldenChest"):FindFirstChild("Trigger")
+end
+
+-- Havada sabit tut
+RunService.Heartbeat:Connect(function()
+    if autoFarmEnabled then
+        humanoidRootPart.Velocity = Vector3.zero
+        humanoidRootPart.CFrame = CFrame.new(humanoidRootPart.Position.X, SABIT_YUKSEKLIK, humanoidRootPart.Position.Z)
+    end
+end)
+
+local function tweenTo(position)
+    local tween = TweenService:Create(humanoidRootPart, TweenInfo.new(0.4), {
+        CFrame = CFrame.new(position.X, SABIT_YUKSEKLIK, position.Z)
+    })
+    tween:Play()
+    tween.Completed:Wait()
+end
+
+-- Farm döngüsü
+local function startTweenFarm()
+    while autoFarmEnabled do
+        for _, stageName in ipairs(stageOrder) do
+            if not autoFarmEnabled then break end
+            local targetPart = findDarkness(stageName)
+            if targetPart then
+                tweenTo(targetPart.Position)
+                task.wait(3)
+            end
+        end
+
+        local trigger = getTriggerPart()
+        if trigger then
+            tweenTo(Vector3.new(trigger.Position.X, SABIT_YUKSEKLIK, trigger.Position.Z))
+            task.wait(0.2)
+            autoFarmEnabled = false
+            humanoidRootPart.CFrame = CFrame.new(trigger.Position.X, SABIT_YUKSEKLIK + 1, trigger.Position.Z)
+            task.wait(18)
+            autoFarmEnabled = true
+        end
+    end
+end
+
+-- Farm başlat/durdur
+local function toggleFarm()
+    autoFarmEnabled = not autoFarmEnabled
+    if autoFarmEnabled then
+        task.spawn(startTweenFarm)
+    end
+end
+
+-- İlk scriptten tetikleme için global fonksiyon
+_G.ToggleTweenFarm = toggleFarm

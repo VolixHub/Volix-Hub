@@ -146,14 +146,14 @@ loadingText.Parent = loadingFrame
 
 local volixHubText = Instance.new("TextLabel")
 volixHubText.Size = UDim2.new(0.6, 0, 0.2, 0)
-volixHubText.Position = UDim2.new(0.2, 0, 0.05, 0)
-volixHubText.BackgroundTransparency = 1
-volixHubText.Text = "Volix Hub V2.7 (Beta)"
-volixHubText.TextColor3 = Color3.fromRGB(255, 255, 255)
-volixHubText.Font = Enum.Font.GothamBold
-volixHubText.TextScaled = true
-volixHubText.TextSize = 16
-volixHubText.Parent = loadingFrame
+loadingText.Position = UDim2.new(0.2, 0, 0.05, 0)
+loadingText.BackgroundTransparency = 1
+loadingText.Text = "Volix Hub V2.7 (Beta)"
+loadingText.TextColor3 = Color3.fromRGB(255, 255, 255)
+loadingText.Font = Enum.Font.GothamBold
+loadingText.TextScaled = true
+loadingText.TextSize = 16
+loadingText.Parent = loadingFrame
 
 local barBG = Instance.new("Frame")
 barBG.Size = UDim2.new(1, -40, 0, 20)
@@ -605,4 +605,38 @@ task.delay(1, function()
     speedButton.MouseButton1Click:Connect(function()
         speedHackEnabled = not speedHackEnabled
         if speedHackEnabled then
-            local speed = math.clamp(tonumber(speedBox.Text) or defaultWalkspeed, 16, MAX_WAL
+            local speed = math.clamp(tonumber(speedBox.Text) or defaultWalkspeed, 16, MAX_WALK_SPEED)
+            humanoid.WalkSpeed = speed
+        else
+            humanoid.WalkSpeed = defaultWalkspeed
+        end
+        speedButton.Text = speedHackEnabled and "Speed: ON" or "Speed: OFF"
+        speedButton.BackgroundColor3 = speedHackEnabled and Color3.fromRGB(50, 255, 50) or Color3.fromRGB(255, 50, 50)
+    end)
+
+    -- Jump Power Function
+    jumpPowerBox.FocusLost:Connect(function()
+        local power = tonumber(jumpPowerBox.Text) or defaultJumpPower
+        power = math.clamp(power, 50, MAX_JUMP_POWER)
+        jumpPowerBox.Text = tostring(power)
+
+        if jumpPowerEnabled then
+            humanoid.JumpPower = power
+        end
+    end)
+
+    jumpPowerButton.MouseButton1Click:Connect(function()
+        jumpPowerEnabled = not jumpPowerEnabled
+        if jumpPowerEnabled then
+            local power = math.clamp(tonumber(jumpPowerBox.Text) or defaultJumpPower, 50, MAX_JUMP_POWER)
+            humanoid.JumpPower = power
+        else
+            humanoid.JumpPower = defaultJumpPower
+        end
+        jumpPowerButton.Text = jumpPowerEnabled and "JumpPower: ON" or "JumpPower: OFF"
+        jumpPowerButton.BackgroundColor3 = jumpPowerEnabled and Color3.fromRGB(50, 255, 50) or Color3.fromRGB(255, 50, 50)
+    end)
+
+    -- Theme Function
+    themeButton.MouseButton1Click:Connect(function()
+        darkTheme
